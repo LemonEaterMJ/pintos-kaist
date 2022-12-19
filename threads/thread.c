@@ -60,6 +60,9 @@ static unsigned thread_ticks;   /* # of timer ticks since last yield. */
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
 
+/* min value wakeup_tick of sleep_list */
+static int64_t next_tick_to_awake;
+
 static void kernel_thread (thread_func *, void *aux);
 
 static void idle (void *aux UNUSED);
@@ -89,6 +92,7 @@ static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 	TODO : 수정 
 	main()함수에서 호출되는 쓰레드 관련 초기화 함수 
 	sleep_list 자료구조 초기화 코드 추가 
+	next_tick_to_awake 초기화
 */
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
@@ -119,7 +123,10 @@ thread_init (void) {
 	/* Init the globla thread context */
 	lock_init (&tid_lock);
 	list_init (&ready_list);
+	list_init (&sleep_list);
 	list_init (&destruction_req);
+
+	next_tick_to_awake = INT64_MAX;
 
 	/* Set up a thread structure for the running thread. */
 	initial_thread = running_thread ();
@@ -599,3 +606,82 @@ allocate_tid (void) {
 
 	return tid;
 }
+
+
+/* *******************TODO : MY CODE ********************/
+
+
+/* RETURN next_tick_to_awake */
+int64_t get_next_tick_to_awake(void) {
+	return next_tick_to_awake;
+}
+
+/*  UPDATE next_tick_to_awake 
+ *	to min tick of sleep queue 
+ */
+void update_next_tick_to_awake(int64_t ticks) {
+	next_tick_to_awake = (next_tick_to_awake > ticks) ? ticks : next_tick_to_awake;
+}
+
+
+/*  wake up threads from sleep queue 
+ *	if thread's wakeup_tick > ticks  then wake up(unblock) thread  
+ *  walk sleep queue 
+ * 	to save min wakeup_tick to next_tick_to_awake
+ */
+void thread_awake(int64_t ticks) {
+
+	// +++++++++++++++++++++++++++++++++++++++++++++++++++
+	/* get beginning of sleep list */
+	struct list_elem *temp_elem = list_begin(&sleep_list);
+
+	/* WALKING sleep LIST */
+	while (temp_elem != list_end(&sleep_list)) {
+		/* temp_elem의 껍질 구조체(thread)를 찾아줌 */
+		struct thread *temp_thread = list_entry(temp_elem, struct thread, elem);
+
+		/* wakeup_tick이 현재 시각보다 작다면 전부 깨우자 */
+		if (temp_thread->wakeup_tick <= ticks) {
+			temp_elem = list_remove(temp_elem);
+			// 원래 소속되어 있던 thread 를 unblock 상태로
+			thread_unblock(temp_thread);
+		} else {	
+			// 조건이 아니라면 그냥 통과
+			temp_elem = list_next(temp_elem);
+		}
+	}
+}
+
+/*  put current thread to sleep (**check if idle thread)
+	put thread in sleep_list & turn flag to BLOCKED 
+	***NO interrupts***
+	called by timer_sleep()
+	call schedule()
+*/
+void thread_sleep(int64_t ticks) {
+	struct thread *curr;		// current thread 
+
+	enum intr_level old_level; 	/* store old interrupt level */
+	old_level = intr_disable(); /* DISABLE INTERRUPT */
+	/* --------under this line, no INTERRUPTS--------------- */
+
+	curr = thread_current();	
+
+	/* idle thread should not sleep */
+	ASSERT(curr != idle_thread);
+
+	/* update curr thread's wakeup_tick to ticks */
+	curr->wakeup_tick = ticks;
+	update_next_tick_to_awake(ticks);
+
+	/* insert current thread to tail of sleep_list */
+	list_push_back(&sleep_list, &(curr->elem));
+	thread_block();		// current thread to BLOCK
+
+	/* call schedule() */
+	/* ------------------------------------------------------ */
+
+	/* RETURN TO old interrupt level */
+	intr_set_level(old_level);	
+}	
+

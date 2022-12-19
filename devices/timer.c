@@ -22,14 +22,23 @@
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
 
-/* SAVE minimal wakeup_tick of sleep_list */
-int64_t next_tick_to_awake;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
 
 /* GLOBAL VARIABLE END */
+
+
+/* =============== ALARM FUNCTIONS ================= */
+
+int64_t get_next_tick_to_awake(void);
+void update_next_tick_to_awake(int64_t ticks);
+void thread_awake(int64_t ticks);
+void thread_sleep(int64_t ticks);
+
+/* ALARM FUNC DECLARE END */
+
 
 
 
@@ -108,8 +117,16 @@ timer_sleep (int64_t ticks) {
 	int64_t start = timer_ticks ();
 
 	ASSERT (intr_get_level () == INTR_ON);
-	while (timer_elapsed (start) < ticks)
-		thread_yield ();
+	
+	/* ----Project 1----*/
+	if (timer_elapsed(start) < ticks) {
+		thread_sleep(start + ticks);
+	}
+
+	// //BUSY WAITING CODE 
+	// while (timer_elapsed (start) < ticks) {
+	// 	thread_yield ();
+	// }
 }
 
 /* Suspends execution for approximately MS milliseconds. */
@@ -141,12 +158,22 @@ timer_print_stats (void) {
  * check if sleep_list has threads that need to wake up 
  * 		get min wakeup_tick from sleep_list
  * 		walk list and wake all threads (call thread_awake())
+ * 		update global tick
  */
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
 	ticks++;
-	thread_tick ();
+	thread_tick ();	// update CPU usage for running process 
+
+	int64_t next_temp;
+	next_temp = get_next_tick_to_awake();
+
+	/* wake all threads for waketime smaller than current time */
+	if (next_temp < ticks) {
+		thread_awake(ticks);	
+	}
+
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
@@ -204,38 +231,5 @@ real_time_sleep (int64_t num, int32_t denom) {
 		ASSERT (denom % 1000 == 0);
 		busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000));
 	}
-}
-
-
-/*******TODO : MY CODE FOR SLEEP-WAKE THREAD **********/
-
-/*  wake up threads from sleep queue 
- *	if thread's wakeup_tick > ticks  then wake up thread  
- *  walk sleep queue to save min wakeup_tick to next_tick_to_awake
- */
-void thread_awake(int64_t ticks) {
-
-}
-
-/*  put thread to sleep 
-	put thread in sleep_list & turn flag to BLOCKED 
-	NO interrupts
-	called by timer_sleep()
-*/
-void thread_sleep(int64_t ticks) {
-
-}	
-
-
-/*  UPDATE next_tick_to_awake 
- *	to min tick of sleep queue 
- */
-void update_next_tick_to_awake(int64_t ticks) {
-
-}
-
-/* RETURN next_tick_to_awake */
-int64_t get_next_tick_to_awake(void) {
-
 }
 
