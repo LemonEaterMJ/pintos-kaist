@@ -38,11 +38,7 @@ static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 
-/* 
-	TODO : 수정 
-	main()함수에서 호출되는 쓰레드 관련 초기화 함수 
-	Sleep_list 자료구조 초기화 코드 추가 
-*/
+
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
    corresponding interrupt. */

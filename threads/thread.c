@@ -85,6 +85,11 @@ static tid_t allocate_tid (void);
 // setup temporal gdt first.
 static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
+/* 
+	TODO : 수정 
+	main()함수에서 호출되는 쓰레드 관련 초기화 함수 
+	sleep_list 자료구조 초기화 코드 추가 
+*/
 /* Initializes the threading system by transforming the code
    that's currently running into a thread.  This can't work in
    general and it is possible in this case only because loader.S
