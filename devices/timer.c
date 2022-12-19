@@ -17,18 +17,32 @@
 #error TIMER_FREQ <= 1000 recommended
 #endif
 
+/* ============== GLOBAL VARIABLES ================*/
+
 /* Number of timer ticks since OS booted. */
 static int64_t ticks;
+
+/* SAVE minimal wakeup_tick of sleep_list */
+int64_t next_tick_to_awake;
 
 /* Number of loops per timer tick.
    Initialized by timer_calibrate(). */
 static unsigned loops_per_tick;
+
+/* GLOBAL VARIABLE END */
+
+
 
 static intr_handler_func timer_interrupt;
 static bool too_many_loops (unsigned loops);
 static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 
+/* 
+	TODO : 수정 
+	main()함수에서 호출되는 쓰레드 관련 초기화 함수 
+	Sleep_list 자료구조 초기화 코드 추가 
+*/
 /* Sets up the 8254 Programmable Interval Timer (PIT) to
    interrupt PIT_FREQ times per second, and registers the
    corresponding interrupt. */
@@ -87,6 +101,11 @@ timer_elapsed (int64_t then) {
 	return timer_ticks () - then;
 }
 
+/* 
+	TODO : 수정 
+	NO MORE BUSY WAITING 
+	use sleep_list & call thread_sleep()
+*/
 /* Suspends execution for approximately TICKS timer ticks. */
 void
 timer_sleep (int64_t ticks) {
@@ -120,7 +139,13 @@ void
 timer_print_stats (void) {
 	printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
-
+
+/* TODO : 수정 
+ * tick마다 timer interrupt 시 호출 
+ * check if sleep_list has threads that need to wake up 
+ * 		get min wakeup_tick from sleep_list
+ * 		walk list and wake all threads (call thread_awake())
+ */
 /* Timer interrupt handler. */
 static void
 timer_interrupt (struct intr_frame *args UNUSED) {
@@ -184,3 +209,37 @@ real_time_sleep (int64_t num, int32_t denom) {
 		busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000));
 	}
 }
+
+
+/*******TODO : MY CODE FOR SLEEP-WAKE THREAD **********/
+
+/*  wake up threads from sleep queue 
+ *	if thread's wakeup_tick > ticks  then wake up thread  
+ *  walk sleep queue to save min wakeup_tick to next_tick_to_awake
+ */
+void thread_awake(int64_t ticks) {
+
+}
+
+/*  put thread to sleep 
+	put thread in sleep_list & turn flag to BLOCKED 
+	NO interrupts
+	called by timer_sleep()
+*/
+void thread_sleep(int64_t ticks) {
+
+}	
+
+
+/*  UPDATE next_tick_to_awake 
+ *	to min tick of sleep queue 
+ */
+void update_next_tick_to_awake(int64_t ticks) {
+
+}
+
+/* RETURN next_tick_to_awake */
+int64_t get_next_tick_to_awake(void) {
+
+}
+

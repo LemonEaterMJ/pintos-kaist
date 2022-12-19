@@ -103,9 +103,10 @@ struct thread {
 	/* Table for whole virtual memory owned by thread. */
 	struct supplemental_page_table spt;
 #endif
-
+	
 	/* Owned by thread.c. */
 	struct intr_frame tf;               /* Information for switching */
+	int64_t wakeup_tick;				/* tick to wake up */
 	unsigned magic;                     /* Detects stack overflow. */
 };
 
@@ -142,5 +143,14 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 void do_iret (struct intr_frame *tf);
+
+void thread_sleep(int64_t ticks);		/* put thread to sleep */
+void thread_awake(int64_t ticks);		/* wake up thread from sleep queue */
+
+/* save thread with minimal ticks */
+void update_next_tick_to_awake(int64_t ticks);	
+
+/* return next_tick_to_awake of thread.c */
+int64_t get_next_tick_to_awake(void);
 
 #endif /* threads/thread.h */
