@@ -49,6 +49,12 @@ sema_init (struct semaphore *sema, unsigned value) {
 	list_init (&sema->waiters);
 }
 
+
+/* 
+ *	TODO : 수정 
+ *	waiters list에 thread insert시, priority 순서대로
+ *	
+ */
 /* Down or "P" operation on a semaphore.  Waits for SEMA's value
    to become positive and then atomically decrements it.
 
@@ -98,6 +104,11 @@ sema_try_down (struct semaphore *sema) {
 	return success;
 }
 
+
+/* 
+ *	TODO : 수정 
+ *	waiters list를 priority 순서대로 정렬 
+ */
 /* Up or "V" operation on a semaphore.  Increments SEMA's value
    and wakes up one thread of those waiting for SEMA, if any.
 
@@ -174,6 +185,13 @@ lock_init (struct lock *lock) {
 	sema_init (&lock->semaphore, 1);
 }
 
+/* 
+ *	TODO : 수정 
+ *	if lock is not available, lock addr 저장 
+ *	현재 priority 저장 
+ *	donated thread list 유지 
+ *	이후 priority 기부한다. 
+ */
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
    thread.
@@ -211,6 +229,11 @@ lock_try_acquire (struct lock *lock) {
 	return success;
 }
 
+/* 
+ *	TODO : 수정 
+ *	lock release 시, donation list 에서 lock을 들고 있는 thread 제거 
+ *	이후 원래 priority set 
+ */
 /* Releases LOCK, which must be owned by the current thread.
    This is lock_release function.
 
@@ -252,6 +275,13 @@ cond_init (struct condition *cond) {
 	list_init (&cond->waiters);
 }
 
+
+/* 
+ *	TODO : 수정 
+ *	반드시 LOCK 상태로 이 함수를 불러야한다 
+ *	waiters list에 thread 삽입 시, priority order 로 	
+ *
+ */
 /* Atomically releases LOCK and waits for COND to be signaled by
    some other piece of code.  After COND is signaled, LOCK is
    reacquired before returning.  LOCK must be held before calling
@@ -288,6 +318,11 @@ cond_wait (struct condition *cond, struct lock *lock) {
 	lock_acquire (lock);
 }
 
+
+/* 
+ *	TODO : 수정 
+ *	waiters list를 priority 순서대로 정렬 
+ */
 /* If any threads are waiting on COND (protected by LOCK), then
    this function signals one of them to wake up from its wait.
    LOCK must be held before calling this function.

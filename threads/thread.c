@@ -88,6 +88,17 @@ static tid_t allocate_tid (void);
 // setup temporal gdt first.
 static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
+bool cmp_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+	struct thread *t_a = list_entry(a, struct thread, elem);
+	struct thread *t_b = list_entry(b, struct thread, elem);
+	if ((t_a->priority) > (t_b->priority)) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+
 /* 
 	TODO : 수정 
 	main()함수에서 호출되는 쓰레드 관련 초기화 함수 
@@ -179,6 +190,14 @@ thread_print_stats (void) {
 			idle_ticks, kernel_ticks, user_ticks);
 }
 
+/*  TODO : thread_create() 수정 
+ *	when inserting a thread to ready_list, compare priority with 
+ * 	currently running thread. 
+ * 	if new_priority > current_running_priority, then run new one.
+ *		call thread_yield()		
+ * 	애초에 creation 후 자동으로 run queue에 삽입되도록 짜여있음. 
+ *	thread_unblock()을 작업 다 끝나고 부르기 때문.   
+ */
 /* Creates a new kernel thread named NAME with the given initial
    PRIORITY, which executes FUNCTION passing AUX as the argument,
    and adds it to the ready queue.  Returns the thread identifier
@@ -199,6 +218,8 @@ thread_create (const char *name, int priority,
 		thread_func *function, void *aux) {
 	struct thread *t;
 	tid_t tid;
+	struct thread *curr_thread = thread_current();
+	enum intr_level old_level;
 
 	ASSERT (function != NULL);
 
@@ -222,8 +243,14 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
-	/* Add to run queue. */
-	thread_unblock (t);
+	// curr thread 와 new thread t PRIORITY 비교 
+	if (curr_thread->priority < t->priority) {
+		/* Add new t to run queue. */
+		thread_unblock (t);	
+		thread_yield();		// yield current thread
+	} else {
+		thread_unblock (t);
+	}
 
 	return tid;
 }
@@ -242,6 +269,14 @@ thread_block (void) {
 	schedule ();
 }
 
+
+/* 
+ *	TODO : 수정 
+ *	read_list에 삽입될 때 priority order로 들어가게
+ *	when unblocking a thread, use list_insert_ordered 
+ *			list_push_back을 쓰지 말라고 하십니다. 
+ * 
+ */
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -252,13 +287,16 @@ thread_block (void) {
    update other data. */
 void
 thread_unblock (struct thread *t) {
-	enum intr_level old_level;
+	enum intr_level old_level; 
 
 	ASSERT (is_thread (t));
 
 	old_level = intr_disable ();
 	ASSERT (t->status == THREAD_BLOCKED);
-	list_push_back (&ready_list, &t->elem);
+	// list_push_back (&ready_list, &t->elem);
+
+	list_insert_ordered(& ready_list, &(t->elem), &cmp_priority, NULL);
+
 	t->status = THREAD_READY;
 	intr_set_level (old_level);
 }
@@ -310,6 +348,12 @@ thread_exit (void) {
 	NOT_REACHED ();
 }
 
+
+/* 
+ *	TODO : 수정
+ *	ready_list에 삽입될 때 priority order 로 sorting. 
+ * 
+ */
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
 void
@@ -320,17 +364,48 @@ thread_yield (void) {
 	ASSERT (!intr_context ());
 
 	old_level = intr_disable ();
-	if (curr != idle_thread)
-		list_push_back (&ready_list, &curr->elem);
+	if (curr != idle_thread) {
+		list_insert_ordered(&ready_list, &(curr->elem), &cmp_priority, NULL);
+	}
+		
 	do_schedule (THREAD_READY);
 	intr_set_level (old_level);
 }
 
+/* 
+ *	TODO : 수정 
+ *	curr_thread PRIORITY 와 ready_list의 MAX PRIORITY를 비교 
+ *	
+ * 	donation을 고려해서 priority 설정 하게끔 
+ */
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
+	
+	if (!list_empty(&ready_list)) {
+		test_max_priority();
+	}
 }
+
+/* compare MAX PRIORITY from ready_list
+ *	---VS---	current thread priority 
+ *	IF current thread priority is smaller, then yield current.
+ */
+void test_max_priority(void) { 
+	struct thread *curr_thread = thread_current();
+	struct list_elem *e = list_begin(&ready_list);
+	struct thread *t = list_entry(e, struct thread, elem);
+	
+	if (list_empty(&ready_list)) {
+		return ;
+	}
+
+	if (curr_thread->priority < t->priority) {
+		thread_yield();		// yield current thread
+	}
+}
+
 
 /* Returns the current thread's priority. */
 int
@@ -413,6 +488,10 @@ kernel_thread (thread_func *function, void *aux) {
 }
 
 
+/* 
+ *	TODO : 수정 
+ *	priority donation initialize 
+ */
 /* Does basic initialization of T as a blocked thread named
    NAME. */
 static void
