@@ -32,6 +32,18 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 
+
+/* 
+ *  TODO : cmp_sem_priority 함수 
+ *	a semaphore를 위해 대기 중인 가장 높은 우선순위의 thread와 
+ *	b semaphore 를 위해 대기 중인 가장 높은 우선순위의 thread와 비교  
+ */
+bool cmp_sem_priority(const struct list_elem *a, const struct list_elem *b, void * aux UNUSED) {
+
+	return true; 
+}
+
+
 /* Initializes semaphore SEMA to VALUE.  A semaphore is a
    nonnegative integer along with two atomic operators for
    manipulating it:
@@ -53,7 +65,7 @@ sema_init (struct semaphore *sema, unsigned value) {
 /* 
  *	TODO : 수정 
  *	waiters list에 thread insert시, priority 순서대로
- *	
+ *	이 함수는 sema를 '요청'및 '획득'후 value--
  */
 /* Down or "P" operation on a semaphore.  Waits for SEMA's value
    to become positive and then atomically decrements it.
@@ -70,12 +82,14 @@ sema_down (struct semaphore *sema) {
 	ASSERT (sema != NULL);
 	ASSERT (!intr_context ());
 
+	/* ----이 줄 밑으로 interrupt disable ------*/
 	old_level = intr_disable ();
 	while (sema->value == 0) {
 		list_push_back (&sema->waiters, &thread_current ()->elem);
 		thread_block ();
 	}
 	sema->value--;
+	/* --- 다시 interrupt 정상화 --- */
 	intr_set_level (old_level);
 }
 
@@ -108,6 +122,7 @@ sema_try_down (struct semaphore *sema) {
 /* 
  *	TODO : 수정 
  *	waiters list를 priority 순서대로 정렬 
+ * 	이 함수는 sema를 '반환'한고 value 1을 높인다.
  */
 /* Up or "V" operation on a semaphore.  Increments SEMA's value
    and wakes up one thread of those waiting for SEMA, if any.
@@ -265,6 +280,8 @@ struct semaphore_elem {
 	struct semaphore semaphore;         /* This semaphore. */
 };
 
+
+/* waiter list initialize */
 /* Initializes condition variable COND.  A condition variable
    allows one piece of code to signal a condition and cooperating
    code to receive the signal and act upon it. */
@@ -280,7 +297,7 @@ cond_init (struct condition *cond) {
  *	TODO : 수정 
  *	반드시 LOCK 상태로 이 함수를 불러야한다 
  *	waiters list에 thread 삽입 시, priority order 로 	
- *
+ *	waiters list을 통해 signal이 오는지 가림(??)
  */
 /* Atomically releases LOCK and waits for COND to be signaled by
    some other piece of code.  After COND is signaled, LOCK is
@@ -322,6 +339,7 @@ cond_wait (struct condition *cond, struct lock *lock) {
 /* 
  *	TODO : 수정 
  *	waiters list를 priority 순서대로 정렬 
+ *	waiters list에서 기다리는 가장 높은 우선순위의 thread에게 signal
  */
 /* If any threads are waiting on COND (protected by LOCK), then
    this function signals one of them to wake up from its wait.
@@ -342,6 +360,11 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 					struct semaphore_elem, elem)->semaphore);
 }
 
+
+/* 
+ *	condition variable에서 기다리는 모든 thread에게 signal 
+ *	결국 waiter list에게 전부 신호를 보낸다는 뜻인듯(??)
+ */
 /* Wakes up all threads, if any, waiting on COND (protected by
    LOCK).  LOCK must be held before calling this function.
 
