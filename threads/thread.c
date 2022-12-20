@@ -218,8 +218,6 @@ thread_create (const char *name, int priority,
 		thread_func *function, void *aux) {
 	struct thread *t;
 	tid_t tid;
-	struct thread *curr_thread = thread_current();
-	enum intr_level old_level;
 
 	ASSERT (function != NULL);
 
@@ -243,14 +241,9 @@ thread_create (const char *name, int priority,
 	t->tf.cs = SEL_KCSEG;
 	t->tf.eflags = FLAG_IF;
 
+	thread_unblock(t);	
 	// curr thread 와 new thread t PRIORITY 비교 
-	if (curr_thread->priority < t->priority) {
-		/* Add new t to run queue. */
-		thread_unblock (t);	
-		thread_yield();		// yield current thread
-	} else {
-		thread_unblock (t);
-	}
+	test_max_priority();
 
 	return tid;
 }
@@ -313,7 +306,7 @@ thread_name (void) {
 struct thread *
 thread_current (void) {
 	struct thread *t = running_thread ();
-
+	
 	/* Make sure T is really a thread.
 	   If either of these assertions fire, then your thread may
 	   have overflowed its stack.  Each thread has less than 4 kB
@@ -397,12 +390,10 @@ void test_max_priority(void) {
 	struct list_elem *e = list_begin(&ready_list);
 	struct thread *t = list_entry(e, struct thread, elem);
 	
-	if (list_empty(&ready_list)) {
-		return ;
-	}
-
-	if (curr_thread->priority < t->priority) {
-		thread_yield();		// yield current thread
+	if (!list_empty(&ready_list)) {
+		if (curr_thread->priority < t->priority) {
+			thread_yield();		// yield current thread
+		}
 	}
 }
 
