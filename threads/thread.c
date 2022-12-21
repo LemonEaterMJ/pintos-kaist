@@ -825,8 +825,26 @@ void remove_with_lock(struct lock *lock) {
 	}
 }
 
-/* refresh_priority */
+/* refresh_priority 
+ *	after thread priority change, refresh priority   
+ *	
+ *	change priority back to initial_priority
+ *	MAX priority from waiters list
+ *		----- VS ----	initial_priority
+ *		then refresh to final priority		
+ */
 void refresh_priority(void) {
+	struct thread *curr = thread_current();
+	int init_pri = curr->original_priority;
+
+	struct list_elem *max_e = list_begin(&curr->donation_list);
+	int max_pri = list_entry(max_e, struct thread, elem)->priority;
+
+	if (max_pri > init_pri) {
+		curr->priority = max_pri;
+	} else {
+		curr->priority = init_pri;
+	}
 
 }
 
