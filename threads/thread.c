@@ -369,14 +369,16 @@ thread_yield (void) {
  *	TODO : 수정 
  *	curr_thread PRIORITY 와 ready_list의 MAX PRIORITY를 비교 
  *	
- * 	thread priority 변경 시, donation 발생 확인 작업 
+ * 	thread priority 변경 시, donation 관련 확인 작업 
  *  이후 우선순위 변경을 위해 call donation_priority() 
  */
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
 	thread_current ()->priority = new_priority;
-	
+	refresh_priority();
+	donate_priority();
+
 	if (!list_empty(&ready_list)) {
 		test_max_priority();
 	}

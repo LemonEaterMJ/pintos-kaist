@@ -325,6 +325,11 @@ void
 lock_release (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (lock_held_by_current_thread (lock));
+	
+	/* current thread의 waiters list 에서 lock을 들고 있는 thread 제거 */
+	remove_with_lock(lock);
+
+	refresh_priority();
 
 	lock->holder = NULL;
 	sema_up (&lock->semaphore);
