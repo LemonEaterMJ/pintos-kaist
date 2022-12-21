@@ -114,10 +114,8 @@ sema_down (struct semaphore *sema) {
 	while (sema->value == 0) {
 		// list_push_back (&sema->waiters, &thread_current ()->elem);
 		/* ---priority--- */
-		printf("sema_down1\n");
 		// list_insert_ordered(&sema->waiters, &(thread_current()->elem), &cmp_sem_priority, NULL);
 		list_insert_ordered(&sema->waiters, &(thread_current()->elem), &cmp_priority, NULL);
-		printf("sema_down2\n");
 		/* ----- */
 		thread_block ();
 	}
@@ -251,6 +249,8 @@ lock_init (struct lock *lock) {
  *	현재 priority 저장 
  *	donated thread list 유지 
  *	이후 priority 기부한다. 
+ *	lock을 점유하고 있는 thread와 요청하는 thread의 우선순위 비교
+ * 	이후 priority donation 실행 
  */
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
@@ -293,6 +293,8 @@ lock_try_acquire (struct lock *lock) {
  *	TODO : 수정 
  *	lock release 시, donation list 에서 lock을 들고 있는 thread 제거 
  *	이후 원래 priority set 
+ *	donation list에서 thread delete 후 우선순위 다시 계산 
+ *		--> call remove_with_lock(), refresh_priority()
  */
 /* Releases LOCK, which must be owned by the current thread.
    This is lock_release function.

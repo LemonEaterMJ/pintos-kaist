@@ -108,6 +108,18 @@ struct thread {
 	struct intr_frame tf;               /* Information for switching */
 	int64_t wakeup_tick;				/* tick to wake up */
 	unsigned magic;                     /* Detects stack overflow. */
+
+	/* --------------- priority : Donation ---------------*/
+	/* donation 받기 전 초기 우선순위 값 */
+	int original_priority;
+
+	/* this thread가 들어있는 waiterList 의 주인 LOCK 저장 */
+	struct lock *lock_holder_ptr;
+
+	/* multiple donation tracking list */
+	struct list *donation_list;
+	struct list_elem *donate_list_id;
+	/* -------------------------------------------------- */
 };
 
 /* If false (default), use round-robin scheduler.

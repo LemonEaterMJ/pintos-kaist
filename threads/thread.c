@@ -369,7 +369,8 @@ thread_yield (void) {
  *	TODO : 수정 
  *	curr_thread PRIORITY 와 ready_list의 MAX PRIORITY를 비교 
  *	
- * 	donation을 고려해서 priority 설정 하게끔 
+ * 	thread priority 변경 시, donation 발생 확인 작업 
+ *  이후 우선순위 변경을 위해 call donation_priority() 
  */
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
@@ -380,6 +381,8 @@ thread_set_priority (int new_priority) {
 		test_max_priority();
 	}
 }
+
+
 
 /* compare MAX PRIORITY from ready_list
  *	---VS---	current thread priority 
@@ -497,6 +500,12 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->tf.rsp = (uint64_t) t + PGSIZE - sizeof (void *);
 	t->priority = priority;
 	t->magic = THREAD_MAGIC;
+
+	/* priority : donation initialize */
+	t->original_priority = PRI_DEFAULT;
+	t->lock_holder_ptr = NULL;
+	list_init(&t->donation_list);
+	/* ------------------------------ */
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -755,3 +764,21 @@ void thread_sleep(int64_t ticks) {
 	intr_set_level(old_level);	
 }	
 
+
+/* ------------Priority : Donation----------  */
+/* priority donation */
+void donate_priority(void) {
+
+}
+
+/* remove thread entry from donation list */
+void remove_with_lock(struct lock *lock) {
+
+}
+
+/* refresh_priority */
+void refresh_priority(void) {
+
+}
+
+/* ----------------------------------------- */
