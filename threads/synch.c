@@ -265,6 +265,25 @@ lock_acquire (struct lock *lock) {
 	ASSERT (lock != NULL);
 	ASSERT (!intr_context ());
 	ASSERT (!lock_held_by_current_thread (lock));
+	
+	/* -----------priority : donation----------*/
+	/* current thread에 lock을 걸어준다 */
+	/* current thread의 주인(master) */
+	/* current의 priority와 master priority비교 후 donation 진행 */
+	struct thread *curr = thread_current();
+	struct thread *master = lock->holder;
+	
+	/* master에게 curr노예의 priority donation */
+	donate_priority();
+	
+
+	/* master waiter list에 curr 추가 */
+	list_insert_ordered(&lock->semaphore.waiters, &curr->elem, &cmp_priority, NULL);  
+
+	/* lock 획득 후 lock holder 갱신 */
+	curr->lock_holder_ptr = lock;
+	
+	/* ---------------------------------------- */
 
 	sema_down (&lock->semaphore);
 	lock->holder = thread_current ();

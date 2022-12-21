@@ -118,7 +118,7 @@ struct thread {
 
 	/* multiple donation tracking list */
 	struct list *donation_list;
-	struct list_elem *donate_list_id;
+	struct list_elem donate_list_id;
 	/* -------------------------------------------------- */
 };
 
@@ -176,4 +176,9 @@ void test_max_priority(void);
 bool cmp_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 /* -------------------------------------------- */
 
+/* -----------------priority donation------------------- */
+void refresh_priority (void);
+void remove_with_lock (struct lock *lock);
+void donate_priority (void);
+/* -------------------------------------------------- */
 #endif /* threads/thread.h */

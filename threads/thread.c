@@ -766,14 +766,63 @@ void thread_sleep(int64_t ticks) {
 
 
 /* ------------Priority : Donation----------  */
-/* priority donation */
-void donate_priority(void) {
 
+/* priority donation 수행 
+ *	Nested donation 고려 
+ * 	현재 thread가 기다리고있는 lock과 연결된 모든 thread들을 순회하며 
+ * 	현재 thread의 우선순위를 lock을 보유하고 있는 thread에게 기부 
+ * 	
+ * 	nested depth는 8로 제한
+ */
+void donate_priority(void) {
+	struct thread *slave = thread_current();
+	struct lock *c_lock = slave->lock_holder_ptr;
+	struct thread *master = c_lock->holder;
+
+
+	// nested depth limit 8
+	for (int i = 0 ; i < 8 ; i++) {	
+		if (master->priority < slave->priority) {
+			// 먼저 master의 원래 priority 저장해놓기
+			master->original_priority = master->priority;
+
+			// priority donation
+			master->priority = slave->priority;	
+			// master의 donation list에 추가 
+			list_insert_ordered(master->donation_list, &slave->elem, &cmp_priority, NULL);
+
+			// 타고 올라가서 갱신 
+			if (master->lock_holder_ptr != NULL) {
+				master = master->lock_holder_ptr;
+			} else {
+				break;
+			}
+		} else {
+			break;
+		}
+	}
 }
 
-/* remove thread entry from donation list */
+/* remove thread entry from donation list 
+ *	lock해제 시, waiters list에서 해당되는 entry들 삭제 
+ *	cur thread의 waiters list 확인 후 
+ * 		해지할 lock 보유하고 있는 entry delete
+ *
+ */
 void remove_with_lock(struct lock *lock) {
+	struct thread *curr = thread_current();
+	struct list_elem *temp_e = list_begin(&curr->donation_list);
 
+	/* walk lock master's waiterList */
+	/* delete entries */
+	while (temp_e != list_end(&curr->donation_list)) {
+		struct thread *temp_t = list_entry(temp_e, struct thread, donate_list_id);
+		if (temp_t->lock_holder_ptr == lock) {
+			list_remove(&temp_t->donate_list_id);
+		}
+		
+		temp_e = list_next(temp_e);
+	}
 }
 
 /* refresh_priority */
