@@ -39,10 +39,12 @@ struct semaphore_elem {
 };
 
 /* thread compare */
-bool cmp_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+bool cmp_priority (struct list_elem *a, struct list_elem *b, void *aux UNUSED);
 
 /* semaphore compare */
 bool cmp_sem_priority(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
+
+bool cmp_donate_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 /* 
  *  TODO : cmp_sem_priority 함수 
@@ -115,7 +117,7 @@ sema_down (struct semaphore *sema) {
 		// list_push_back (&sema->waiters, &thread_current ()->elem);
 		/* ---priority--- */
 		// list_insert_ordered(&sema->waiters, &(thread_current()->elem), &cmp_sem_priority, NULL);
-		list_insert_ordered(&sema->waiters, &(thread_current()->elem), &cmp_priority, NULL);
+		list_insert_ordered(&sema->waiters, &(thread_current()->elem), cmp_priority, NULL);
 		/* ----- */
 		thread_block ();
 	}
@@ -170,7 +172,7 @@ sema_up (struct semaphore *sema) {
 	if (!list_empty (&sema->waiters)) {
 		/* --- priority ---*/
 		// list_sort(&sema->waiters, &cmp_sem_priority, NULL);
-		list_sort(&sema->waiters, &cmp_priority, NULL);
+		list_sort(&sema->waiters, cmp_priority, NULL);
 		/* --------------- */
 		thread_unblock (list_entry (list_pop_front (&sema->waiters),
 					struct thread, elem));
@@ -271,22 +273,34 @@ lock_acquire (struct lock *lock) {
 	/* current thread의 주인(master) */
 	/* current의 priority와 master priority비교 후 donation 진행 */
 	struct thread *curr = thread_current();
-	struct thread *master = lock->holder;
-	
-	/* master에게 curr노예의 priority donation */
-	donate_priority();
-	
 
-	/* master waiter list에 curr 추가 */
-	list_insert_ordered(&lock->semaphore.waiters, &curr->elem, &cmp_priority, NULL);  
+	/* MASTER의 존재여부 검사 */
+	if (lock->holder != NULL) {
+		struct thread *master = lock->holder;
+		
+		/* lock 획득 후 lock holder 갱신 */
+		curr->lock_holder_ptr = lock;
 
-	/* lock 획득 후 lock holder 갱신 */
-	curr->lock_holder_ptr = lock;
+		/* master waiter list에 curr 추가 */
+		// printf("lock_acquire\n");
+		list_insert_ordered(&master->donation_list, &curr->donate_list_id, cmp_donate_priority, NULL);  
+		
+		/* master에게 curr노예의 priority donation */
+		donate_priority();
+	}
+	
 	
 	/* ---------------------------------------- */
 
+	// go to waitingList
 	sema_down (&lock->semaphore);
-	lock->holder = thread_current ();
+
+	/* ---donation--- */
+	// 나는 이제 기다리는 사람이 없다?
+	curr->lock_holder_ptr = NULL;
+	/* -------------- */
+
+	lock->holder = curr;
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -398,7 +412,7 @@ cond_wait (struct condition *cond, struct lock *lock) {
 	sema_init (&waiter.semaphore, 0);
 	// list_push_back (&cond->waiters, &waiter.elem);
 	/* --- priority --- */
-	list_insert_ordered(&cond->waiters, &waiter.elem, &cmp_sem_priority, NULL);
+	list_insert_ordered(&cond->waiters, &waiter.elem, cmp_sem_priority, NULL);
 	/* ---------------- */
 	lock_release (lock);
 	sema_down (&waiter.semaphore);
@@ -427,7 +441,7 @@ cond_signal (struct condition *cond, struct lock *lock UNUSED) {
 
 	if (!list_empty (&cond->waiters)) {
 		/* --- priority --- */
-		list_sort(&cond->waiters, &cmp_sem_priority, NULL);	
+		list_sort(&cond->waiters, cmp_sem_priority, NULL);	
 		/* ---------------- */
 		sema_up (&list_entry (list_pop_front (&cond->waiters),
 					struct semaphore_elem, elem)->semaphore);

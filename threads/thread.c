@@ -88,10 +88,21 @@ static tid_t allocate_tid (void);
 // setup temporal gdt first.
 static uint64_t gdt[3] = { 0, 0x00af9a000000ffff, 0x00cf92000000ffff };
 
-bool cmp_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+bool cmp_priority (struct list_elem *a, struct list_elem *b, void *aux UNUSED) {
 	struct thread *t_a = list_entry(a, struct thread, elem);
 	struct thread *t_b = list_entry(b, struct thread, elem);
 	if ((t_a->priority) > (t_b->priority)) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
+bool cmp_donate_priority (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+	struct thread *a_t = list_entry(a, struct thread, donate_list_id);
+	struct thread *b_t = list_entry(b, struct thread, donate_list_id);
+
+	if (a_t->priority > b_t->priority) {
 		return true;
 	} else {
 		return false;
@@ -375,13 +386,13 @@ thread_yield (void) {
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) {
-	thread_current ()->priority = new_priority;
+	thread_current ()->original_priority = new_priority;
 	refresh_priority();
-	donate_priority();
+	// donate_priority();
 
-	if (!list_empty(&ready_list)) {
-		test_max_priority();
-	}
+	// if (!list_empty(&ready_list)) {
+	test_max_priority();
+	// }
 }
 
 
@@ -391,11 +402,11 @@ thread_set_priority (int new_priority) {
  *	IF current thread priority is smaller, then yield current.
  */
 void test_max_priority(void) { 
-	struct thread *curr_thread = thread_current();
-	struct list_elem *e = list_begin(&ready_list);
-	struct thread *t = list_entry(e, struct thread, elem);
-	
 	if (!list_empty(&ready_list)) {
+		struct thread *curr_thread = thread_current();
+		struct list_elem *e = list_front(&ready_list);
+		struct thread *t = list_entry(e, struct thread, elem);
+		
 		if (curr_thread->priority < t->priority) {
 			thread_yield();		// yield current thread
 		}
@@ -504,7 +515,7 @@ init_thread (struct thread *t, const char *name, int priority) {
 	t->magic = THREAD_MAGIC;
 
 	/* priority : donation initialize */
-	t->original_priority = PRI_DEFAULT;
+	t->original_priority = priority;
 	t->lock_holder_ptr = NULL;
 	list_init(&t->donation_list);
 	/* ------------------------------ */
@@ -752,14 +763,12 @@ void thread_sleep(int64_t ticks) {
 	ASSERT(curr != idle_thread);
 
 	/* update curr thread's wakeup_tick to ticks */
-	curr->wakeup_tick = ticks;
-	update_next_tick_to_awake(ticks);
+	update_next_tick_to_awake(curr->wakeup_tick = ticks);
 
 	/* insert current thread to tail of sleep_list */
 	list_push_back(&sleep_list, &(curr->elem));
 	thread_block();		// current thread to BLOCK
 
-	/* call schedule() */
 	/* ------------------------------------------------------ */
 
 	/* RETURN TO old interrupt level */
@@ -778,31 +787,39 @@ void thread_sleep(int64_t ticks) {
  */
 void donate_priority(void) {
 	struct thread *slave = thread_current();
-	struct lock *c_lock = slave->lock_holder_ptr;
-	struct thread *master = c_lock->holder;
 
-
-	// nested depth limit 8
-	for (int i = 0 ; i < 8 ; i++) {	
-		if (master->priority < slave->priority) {
-			// 먼저 master의 원래 priority 저장해놓기
-			master->original_priority = master->priority;
-
-			// priority donation
-			master->priority = slave->priority;	
-			// master의 donation list에 추가 
-			list_insert_ordered(master->donation_list, &slave->elem, &cmp_priority, NULL);
-
-			// 타고 올라가서 갱신 
-			if (master->lock_holder_ptr != NULL) {
-				master = master->lock_holder_ptr;
-			} else {
-				break;
-			}
-		} else {
+	for (int i = 0; i < 8; i++) {
+		if (!slave->lock_holder_ptr) {
 			break;
 		}
+		struct thread *master = slave->lock_holder_ptr->holder;
+		master->priority = slave->priority;
+		slave = master;
 	}
+
+
+	// // nested depth limit 8
+	// for (int i = 0 ; i < 8 ; i++) {	
+	// 	if (master->priority < slave->priority) {
+	// 		// 먼저 master의 원래 priority 저장해놓기
+	// 		master->original_priority = master->priority;
+
+	// 		// priority donation
+	// 		master->priority = slave->priority;	
+	// 		// master의 donation list에 추가 
+	// 		printf("donate_priority\n");
+	// 		list_insert_ordered(master->donation_list, &slave->elem, &cmp_priority, NULL);
+
+	// 		// 타고 올라가서 갱신 
+	// 		if (master->lock_holder_ptr != NULL) {
+	// 			master = master->lock_holder_ptr;
+	// 		} else {
+	// 			break;
+	// 		}
+	// 	} else {
+	// 		break;
+	// 	}
+	// }
 }
 
 /* remove thread entry from donation list 
@@ -817,14 +834,21 @@ void remove_with_lock(struct lock *lock) {
 
 	/* walk lock master's waiterList */
 	/* delete entries */
-	while (temp_e != list_end(&curr->donation_list)) {
+	// while (temp_e != list_end(&curr->donation_list)) {
+	// 	struct thread *temp_t = list_entry(temp_e, struct thread, donate_list_id);
+	// 	if (temp_t->lock_holder_ptr == lock) {
+	// 		list_remove(&temp_t->donate_list_id);
+	// 	}
+		
+	// 	temp_e = list_next(temp_e);
+	// }
+	for (temp_e; temp_e != list_end(&curr->donation_list); temp_e = list_next(temp_e)) {
 		struct thread *temp_t = list_entry(temp_e, struct thread, donate_list_id);
 		if (temp_t->lock_holder_ptr == lock) {
 			list_remove(&temp_t->donate_list_id);
 		}
-		
-		temp_e = list_next(temp_e);
 	}
+
 }
 
 /* refresh_priority 
@@ -838,14 +862,16 @@ void remove_with_lock(struct lock *lock) {
 void refresh_priority(void) {
 	struct thread *curr = thread_current();
 	int init_pri = curr->original_priority;
+	curr->priority = init_pri;
 
-	struct list_elem *max_e = list_begin(&curr->donation_list);
-	int max_pri = list_entry(max_e, struct thread, elem)->priority;
+	if (!list_empty(&curr->donation_list)) {
+		list_sort(&curr->donation_list, &cmp_donate_priority, NULL);
+		struct list_elem *max_e = list_front(&curr->donation_list);
+		int max_pri = list_entry(max_e, struct thread, donate_list_id)->priority;
 
-	if (max_pri > init_pri) {
-		curr->priority = max_pri;
-	} else {
-		curr->priority = init_pri;
+		if (max_pri > curr->priority) {
+			curr->priority = max_pri;
+		} 
 	}
 
 }
